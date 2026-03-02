@@ -2,24 +2,30 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>デッキレシピジェネレーター</title>
+<title>デッキレシピジェネレーター（任意QR + 変更可能テキスト）</title>
 <style>
 body { font-family: sans-serif; background: #111; color: #fff; padding: 20px;}
-canvas { border: 1px solid #444; background: #000; display: block; margin-top: 20px;}
-input, button { display: block; margin: 8px 0; }
+canvas { border: 1px solid #444; display: block; margin-top: 20px;}
+input, button { display: block; margin: 8px 0; width: 100%; max-width: 400px;}
 </style>
 </head>
 <body>
 
-<h2>デッキレシピジェネレーター</h2>
+<h2>デッキレシピジェネレーター（任意QR + 右テキスト変更可能）</h2>
 
-<label>デッキ A：中央に表示されます <input type="file" id="deck" accept="image/*"></label>
-<label>アイコン B:左上に表示されます <input type="file" id="icon" accept="image/*"></label>
-<label>QR C:中央上に表示されます <input type="file" id="qr" accept="image/*"></label>
-<label>制作者名: <input type="text" id="creator" placeholder="例: ゲーム太郎"></label>
+<label>デッキ A：中央に表示 <input type="file" id="deck" accept="image/*"></label>
+<label>アイコン B: 左上に表示 <input type="file" id="icon" accept="image/*"></label>
+<label>QR C: 中央上に表示（任意） <input type="file" id="qr" accept="image/*"></label>
+<label>プレイヤー: <input type="text" id="creator" placeholder="例: ゲーム太郎"></label>
+<label>フリーコメント: <input type="text" id="freeComment" placeholder="例: 作ったデッキはこちら！"></label>
+<label>画像C→上部: <input type="text" id="neuronTop" value="←ニューロンQR"></label>
+<label>画像C→下部: <input type="text" id="neuronBottom" value="いいね&フォローよろしく！"></label>
+<label>背景画像（任意）: <input type="file" id="bgImage" accept="image/*"></label>
+<label>文字色: <input type="color" id="textColor"></label>
+<label>輪郭色: <input type="color" id="strokeColor"></label>
 
 <button onclick="generate()">生成</button>
-<a id="download" style="display:none;">ダウンロード</a>
+<a id="download" style="display:none;">ダウンロード JPG</a>
 
 <canvas id="canvas"></canvas>
 
@@ -47,94 +53,123 @@ function drawCyberBackground(ctx, w, h) {
   }
 }
 
-function drawText(ctx, lines, x, y, maxWidth){
+function drawText(ctx, text, x, y, maxWidth, textColor, strokeColor){
   let fontSize = 28;
-  ctx.textAlign = "left";
   ctx.font = `bold ${fontSize}px sans-serif`;
-  let lineHeight = fontSize + 6;
-
-  // 横幅に収まるよう調整
-  while(Math.max(...lines.map(l=>ctx.measureText(l).width)) > maxWidth && fontSize>8){
+  ctx.textAlign = "left";
+  while(ctx.measureText(text).width > maxWidth && fontSize>8){
     fontSize--;
     ctx.font = `bold ${fontSize}px sans-serif`;
-    lineHeight = fontSize + 6;
   }
-
-  lines.forEach((t,i)=>{
-    const textY = y + lineHeight/2 + i*lineHeight;
-    const textX = x;
-    ctx.lineWidth=3; ctx.strokeStyle="#000"; ctx.strokeText(t,textX,textY);
-    const grad=ctx.createLinearGradient(textX,textY-15,textX,textY+5);
-    grad.addColorStop(0,"#00ffff"); grad.addColorStop(1,"#00aaff");
-    ctx.fillStyle=grad; ctx.fillText(t,textX,textY);
-  });
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = strokeColor;
+  ctx.strokeText(text, x, y);
+  ctx.fillStyle = textColor;
+  ctx.fillText(text, x, y);
 }
 
 async function generate(){
   const deckFile=document.getElementById("deck").files[0];
   const iconFile=document.getElementById("icon").files[0];
-  const qrFile=document.getElementById("qr").files[0];
+  const qrFile=document.getElementById("qr").files[0]; // 任意
+  const bgFile=document.getElementById("bgImage").files[0];
   const creator=document.getElementById("creator").value.trim();
+  const freeComment=document.getElementById("freeComment").value.trim();
+  const neuronTop=document.getElementById("neuronTop").value.trim() || "←ニューロンQR";
+  const neuronBottom=document.getElementById("neuronBottom").value.trim() || "いいね&フォローよろしく！";
+  const textColorInput = document.getElementById("textColor").value;
+  const strokeColorInput = document.getElementById("strokeColor").value;
 
-  if(!deckFile || !iconFile || !qrFile || !creator){
-    alert("すべての入力をお願いします");
+  if(!deckFile || !iconFile || !creator){
+    alert("デッキ、アイコン、制作者名は必須です");
     return;
   }
 
-  const [deck, icon, qr] = await Promise.all([loadImg(deckFile), loadImg(iconFile), loadImg(qrFile)]);
+  const [deck, icon, qr, bgImg] = await Promise.all([
+    loadImg(deckFile),
+    loadImg(iconFile),
+    qrFile ? loadImg(qrFile) : Promise.resolve(null),
+    bgFile ? loadImg(bgFile) : Promise.resolve(null)
+  ]);
 
   const canvas=document.getElementById("canvas");
   const ctx=canvas.getContext("2d");
 
-  const deckW=1148, deckH=1427;
+  const deckW=978, deckH=1500;
   const iconW=410, iconH=400;
   const qrW=310, qrH=300;
   const spacing=20;
-  const topMargin=iconH+50, bottomExtra=50;
+  const padding=20;
+  const topMargin=iconH + 50;
+  const bottomExtra=50;
 
-  canvas.width=deckW;
-  canvas.height=deckH+topMargin+bottomExtra;
+  canvas.width = deckW + padding*2;
+  canvas.height = deckH + topMargin + bottomExtra;
 
-  drawCyberBackground(ctx, canvas.width, canvas.height);
-  const pad=20;
+  // 背景
+  if(bgImg){
+    ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
+  } else {
+    drawCyberBackground(ctx, canvas.width, canvas.height);
+  }
 
   // Bアイコン 丸
   ctx.save();
   ctx.beginPath();
-  ctx.arc(pad+iconW/2,pad+iconH/2,Math.min(iconW,iconH)/2,0,2*Math.PI);
+  ctx.arc(padding + iconW/2, padding + iconH/2, Math.min(iconW,iconH)/2, 0, 2*Math.PI);
   ctx.clip();
-  ctx.drawImage(icon,pad,pad,iconW,iconH);
+  ctx.drawImage(icon, padding, padding, iconW, iconH);
   ctx.restore();
+  ctx.strokeStyle="#00ffff";
+  ctx.lineWidth=3;
+  ctx.beginPath();
+  ctx.arc(padding + iconW/2, padding + iconH/2, Math.min(iconW,iconH)/2, 0, 2*Math.PI);
+  ctx.stroke();
 
-  // C QR
-  const qrX=pad+iconW+spacing;
-  const qrY=pad+(iconH/2-qrH/2);
-  ctx.drawImage(qr,qrX,qrY,qrW,qrH);
+  // C QR 任意
+  let qrX, qrY;
+  if(qr){
+    qrX = padding + iconW + spacing;
+    qrY = padding + (iconH/2 - qrH/2);
+    ctx.drawImage(qr, qrX, qrY, qrW, qrH);
+    ctx.strokeStyle="#00ffff";
+    ctx.lineWidth=3;
+    ctx.strokeRect(qrX, qrY, qrW, qrH);
+  } else {
+    // QRなしでも右テキスト用のX,Yは確保
+    qrX = padding + iconW + spacing;
+    qrY = padding;
+  }
 
-  // C右側テキスト
-  const rightX = qrX + qrW + 20;
-  const maxWidth = canvas.width - rightX - 20;
-  const spacingBetween = 10;
+  const finalTextColor = (textColorInput && textColorInput.length>0) ? textColorInput : "#00ffff";
+  const finalStrokeColor = (strokeColorInput && strokeColorInput.length>0) ? strokeColorInput : "#000000";
 
-  // 上側（制作者）
-  const creatorLines = [`制作者: ${creator}`];
-  const creatorY = qrY + qrH/2 - 30; // 上部余白確保
-  drawText(ctx, creatorLines, rightX, creatorY, maxWidth);
+  // テキスト 右側
+  const texts = [
+    freeComment,
+    `制作者: ${creator}`,
+    neuronTop,
+    neuronBottom
+  ];
 
-  // 下側（コメント）
-  const commentLines = ["←ニュWーロンQR","いいね&フォローよろしく"];
-  const commentY = qrY + qrH/2 + spacingBetween;
-  drawText(ctx, commentLines, rightX, commentY, maxWidth);
+  const textX = qrX + (qr ? qrW : 0) + spacing;
+  const textMaxWidth = canvas.width - textX - padding;
+  const totalHeight = qr ? qrH : iconH;
+  const textSpacing = totalHeight / (texts.length + 1);
+
+  texts.forEach((t,i)=>{
+    drawText(ctx, t, textX, qrY + textSpacing*(i+1), textMaxWidth, finalTextColor, finalStrokeColor);
+  });
 
   // A画像
-  ctx.drawImage(deck,0,topMargin,deckW,deckH);
+  ctx.drawImage(deck, padding, topMargin, deckW, deckH);
 
-  // ダウンロード
+  // ダウンロード JPG
   const link=document.getElementById("download");
-  link.href=canvas.toDataURL("image/png");
-  link.download="deck_image.png";
+  link.href = canvas.toDataURL("image/jpeg", 0.9);
+  link.download="deck_image.jpg";
   link.style.display="block";
-  link.innerText="ダウンロード";
+  link.innerText="ダウンロード JPG";
 }
 </script>
 </body>
