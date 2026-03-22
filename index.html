@@ -3,29 +3,12 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>デッキ紹介ジェネレーター</title>
-
+<title>デッキ紹介ジェネレーター 安定版</title>
 <style>
-body{
-  font-family:sans-serif;
-  background:#111;
-  color:#fff;
-  padding:20px;
-}
-canvas{
-  border:1px solid #444;
-  display:block;
-  margin-top:20px;
-  max-width:100%;
-}
-input,button{
-  display:block;
-  margin:8px 0;
-  width:100%;
-  max-width:420px;
-}
+body{font-family:sans-serif;background:#111;color:#fff;padding:20px}
+canvas{border:1px solid #444;display:block;margin-top:20px;max-width:100%}
+input,button{display:block;margin:8px 0;width:100%;max-width:420px}
 </style>
-
 </head>
 <body>
 
@@ -44,22 +27,40 @@ input,button{
 
 <script>
 
-const genBtn=document.getElementById("genBtn");
-const saveBtn=document.getElementById("saveBtn");
 const canvas=document.getElementById("canvas");
 const ctx=canvas.getContext("2d");
-
 let lastBlob=null;
 
-// ★安全な画像読み込み
+// 🔥 安全な画像読み込み＋自動縮小
 function loadImage(file){
   return new Promise((resolve,reject)=>{
-    if(!file) return reject("画像未選択");
-
     const reader=new FileReader();
     reader.onload=e=>{
       const img=new Image();
-      img.onload=()=>resolve(img);
+      img.onload=()=>{
+
+        const MAX=2000; // ← 超重要
+
+        let w=img.width;
+        let h=img.height;
+
+        if(w>MAX || h>MAX){
+          const ratio=Math.min(MAX/w,MAX/h);
+          w*=ratio;
+          h*=ratio;
+
+          const tmp=document.createElement("canvas");
+          tmp.width=w;
+          tmp.height=h;
+          tmp.getContext("2d").drawImage(img,0,0,w,h);
+
+          const small=new Image();
+          small.onload=()=>resolve(small);
+          small.src=tmp.toDataURL("image/jpeg",0.9);
+        }else{
+          resolve(img);
+        }
+      };
       img.onerror=()=>reject("画像読み込み失敗");
       img.src=e.target.result;
     };
@@ -70,8 +71,8 @@ function loadImage(file){
 // QR風
 function drawQR(x,y,size,text){
   if(!text) return;
-  const cells=25;
-  const cell=size/cells;
+  const c=25;
+  const s=size/c;
 
   ctx.fillStyle="#fff";
   ctx.fillRect(x,y,size,size);
@@ -84,36 +85,33 @@ function drawQR(x,y,size,text){
     return seed/233280;
   }
 
-  for(let i=0;i<cells;i++){
-    for(let j=0;j<cells;j++){
-      if(r()>0.5)
-        ctx.fillRect(x+i*cell,y+j*cell,cell,cell);
-    }
-  }
+  for(let i=0;i<c;i++)
+    for(let j=0;j<c;j++)
+      if(r()>0.5) ctx.fillRect(x+i*s,y+j*s,s,s);
 }
 
-function neonRect(x,y,w,h){
+function neon(x,y,w,h){
   ctx.strokeStyle="#00ffff";
   ctx.lineWidth=4;
   ctx.strokeRect(x,y,w,h);
 }
 
-genBtn.onclick=async()=>{
+document.getElementById("genBtn").onclick=async()=>{
 
   try{
 
     const deckFile=document.getElementById("deck").files[0];
     const iconFile=document.getElementById("icon").files[0];
-
     const creator=document.getElementById("creator").value.trim();
-    const comment=document.getElementById("comment").value;
-    const twitter=document.getElementById("twitter").value.trim();
-    const qrUrl=document.getElementById("qrUrl").value.trim();
 
     if(!deckFile || !iconFile || !creator){
       alert("必須項目不足");
       return;
     }
+
+    const comment=document.getElementById("comment").value;
+    const twitter=document.getElementById("twitter").value.trim();
+    const qrUrl=document.getElementById("qrUrl").value.trim();
 
     const [deck,icon]=await Promise.all([
       loadImage(deckFile),
@@ -131,10 +129,10 @@ genBtn.onclick=async()=>{
     canvas.height=topH+deckH+bottomH;
 
     // 背景
-    const grad=ctx.createLinearGradient(0,0,canvas.width,canvas.height);
-    grad.addColorStop(0,"#0a0a0a");
-    grad.addColorStop(1,"#001a33");
-    ctx.fillStyle=grad;
+    const g=ctx.createLinearGradient(0,0,0,canvas.height);
+    g.addColorStop(0,"#0a0a0a");
+    g.addColorStop(1,"#001a33");
+    ctx.fillStyle=g;
     ctx.fillRect(0,0,canvas.width,canvas.height);
 
     // 上部枠
@@ -153,21 +151,53 @@ genBtn.onclick=async()=>{
     ctx.clip();
     ctx.drawImage(icon,pad,y,iconSize,iconSize);
     ctx.restore();
-    neonRect(pad,y,iconSize,iconSize);
+    neon(pad,y,iconSize,iconSize);
 
-    const textX=pad+iconSize+40;
+    const tx=pad+iconSize+40;
 
     ctx.font="bold 44px sans-serif";
-    ctx.lineWidth=6;
     ctx.strokeStyle="#000";
-    ctx.strokeText(creator,textX,y+50);
+    ctx.lineWidth=6;
+    ctx.strokeText(creator,tx,y+50);
     ctx.fillStyle="#00ffff";
-    ctx.fillText(creator,textX,y+50);
+    ctx.fillText(creator,tx,y+50);
 
     ctx.font="bold 28px sans-serif";
-    ctx.strokeText(comment,textX,y+95);
-    ctx.fillText(comment,textX,y+95);
+    ctx.strokeText(comment,tx,y+95);
+    ctx.fillText(comment,tx,y+95);
 
     if(twitter){
       ctx.font="bold 26px sans-serif";
-      ctx.strokeText("@"+twitter,textX,
+      ctx.strokeText("@"+twitter,tx,y+135);
+      ctx.fillText("@"+twitter,tx,y+135);
+    }
+
+    const qrX=canvas.width-pad-qrSize;
+    drawQR(qrX,y,qrSize,qrUrl);
+    neon(qrX,y,qrSize,qrSize);
+
+    const deckY=topH;
+    ctx.drawImage(deck,pad,deckY,deckW,deckH);
+    neon(pad,deckY,deckW,deckH);
+
+    canvas.toBlob(b=>lastBlob=b,"image/jpeg",0.95);
+
+  }catch(e){
+    alert("生成失敗: "+e);
+    console.error(e);
+  }
+
+};
+
+document.getElementById("saveBtn").onclick=()=>{
+  if(!lastBlob){alert("先に生成してください");return;}
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(lastBlob);
+  a.download="deck.jpg";
+  a.click();
+};
+
+</script>
+
+</body>
+</html>
