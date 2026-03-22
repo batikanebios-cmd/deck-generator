@@ -13,81 +13,24 @@ body{
   color:#fff;
   padding:20px;
 }
-
-/* ===== 上部 Twitter ID ===== */
-.top-bar{
-  position:sticky;
-  top:0;
-  z-index:999;
-  display:flex;
-  justify-content:flex-end;
-  padding:8px 0;
-}
-
-.twitter-link{
-  display:flex;
-  align-items:center;
-  gap:8px;
-  text-decoration:none;
-  font-weight:bold;
-  color:#00ffff;
-  background:rgba(0,255,255,0.12);
-  padding:6px 12px;
-  border-radius:999px;
-  border:1px solid #00ffff;
-  box-shadow:0 0 8px #00ffff55;
-  transition:.2s;
-}
-
-.twitter-link:hover{
-  background:#00ffff22;
-  transform:translateY(-1px);
-}
-
-.twitter-icon{
-  width:16px;
-  height:16px;
-  fill:#00ffff;
-}
-
-/* ===== 元のUI ===== */
-
 canvas{
   border:1px solid #444;
   display:block;
   margin-top:20px;
   max-width:100%;
 }
-
 input,textarea,button{
   display:block;
   margin:8px 0;
   width:100%;
   max-width:420px;
 }
-
 textarea{
   height:70px;
 }
 </style>
 </head>
-
 <body>
-
-<!-- ⭐ 作者ID表示 -->
-<div class="top-bar">
-  <a
-    class="twitter-link"
-    href="https://twitter.com/YourID"
-    target="_blank"
-    rel="noopener noreferrer"
-  >
-    <svg class="twitter-icon" viewBox="0 0 24 24">
-      <path d="M18.244 2H21.5l-7.53 8.6L22.5 22h-6.65l-5.2-6.8L4.7 22H1.44l8.05-9.2L1.5 2h6.8l4.7 6.2L18.244 2z"/>
-    </svg>
-    @YourID
-  </a>
-</div>
 
 <h2>デッキレシピジェネレーター（完成版）</h2>
 
@@ -107,14 +50,16 @@ textarea{
 <label>プレイヤー名:
 <input type="text" id="creator"></label>
 
+<!-- ⭐ 追加：Twitter ID -->
+<label>Twitter ID（@なしでOK）:
+<input type="text" id="twitter"></label>
+
 <button onclick="generate()">生成</button>
 <button onclick="saveToiPhone()">iPhoneに保存</button>
 
 <canvas id="canvas"></canvas>
 
 <script>
-// ===== 以下は元コードそのまま =====
-
 async function loadImg(file){
   return new Promise((res,rej)=>{
     const img=new Image();
@@ -213,6 +158,7 @@ async function generate(){
   const qrUrl=document.getElementById("qrUrl").value.trim();
   const qrText=document.getElementById("qrText").value;
   const creator=document.getElementById("creator").value.trim();
+  const twitter=document.getElementById("twitter").value.trim();
 
   if(!deckFile || !iconFile || !creator){
     alert("デッキ・アイコン・プレイヤー名は必須");
@@ -243,6 +189,7 @@ async function generate(){
 
   const topY=padding+40;
 
+  // アイコン
   ctx.save();
   ctx.beginPath();
   ctx.arc(padding+iconSize/2,topY+iconSize/2,iconSize/2,0,Math.PI*2);
@@ -251,6 +198,7 @@ async function generate(){
   ctx.restore();
   drawNeonRect(ctx,padding,topY,iconSize,iconSize);
 
+  // QR
   const qrCanvas=generateQR(qrUrl,qrSize);
   const qrX=padding+iconSize+gap;
   const qrY=topY+(iconSize-qrSize)/2;
@@ -260,6 +208,7 @@ async function generate(){
     drawNeonRect(ctx,qrX,qrY,qrSize,qrSize);
   }
 
+  // テキスト
   const textX=qrX+qrSize+gap;
   const textMax=canvas.width-textX-padding;
 
@@ -272,9 +221,33 @@ async function generate(){
 
   drawMultilineText(ctx,qrText,textX,topY+110,textMax,26,32);
 
+  // デッキ
   const deckY=topY+iconSize+40;
   ctx.drawImage(deck,padding,deckY,deckW,deckH);
   drawNeonRect(ctx,padding,deckY,deckW,deckH);
+
+  // ⭐ Twitter ID を画像に描画
+  if(twitter){
+    const idText = "@" + twitter;
+
+    ctx.font = "bold 32px sans-serif";
+    ctx.textAlign = "right";
+
+    const x = canvas.width - padding;
+    const y = canvas.height - padding;
+
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = "#000";
+    ctx.strokeText(idText, x, y);
+
+    ctx.fillStyle = "#00ffff";
+    ctx.shadowColor = "#00ffff";
+    ctx.shadowBlur = 15;
+    ctx.fillText(idText, x, y);
+
+    ctx.shadowBlur = 0;
+    ctx.textAlign = "left";
+  }
 
   canvas.toBlob(b=>lastBlob=b,"image/jpeg",0.95);
 }
