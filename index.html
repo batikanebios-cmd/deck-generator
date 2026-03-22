@@ -3,32 +3,15 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>デッキレシピジェネレーター 完全版</title>
-
-<!-- ★ ローカルQR（あなたの方式そのまま） -->
+<title>デッキレシピジェネレーター 安定完成版</title>
 
 <script src="qrcode.min.js"></script>
 
 <style>
-body{
-  font-family:sans-serif;
-  background:#111;
-  color:#fff;
-  padding:20px;
-}
-canvas{
-  border:1px solid #444;
-  display:block;
-  margin-top:20px;
-  max-width:100%;
-}
-input,textarea,button{
-  display:block;
-  margin:8px 0;
-  width:100%;
-  max-width:420px;
-}
-textarea{ height:80px; }
+body{font-family:sans-serif;background:#111;color:#fff;padding:20px;}
+canvas{border:1px solid #444;display:block;margin-top:20px;max-width:100%;}
+input,textarea,button{display:block;margin:8px 0;width:100%;max-width:420px;}
+textarea{height:80px;}
 </style>
 
 </head>
@@ -58,33 +41,13 @@ function loadImg(file){
     const reader=new FileReader();
     reader.onload=e=>{
       const img=new Image();
-      img.onload=()=>{
-
-        // 🔥 巨大画像対策
-        const MAX=2000;
-        let w=img.width, h=img.height;
-
-        if(w>MAX||h>MAX){
-          const r=Math.min(MAX/w,MAX/h);
-          w*=r; h*=r;
-
-          const tmp=document.createElement("canvas");
-          tmp.width=w; tmp.height=h;
-          tmp.getContext("2d").drawImage(img,0,0,w,h);
-
-          const small=new Image();
-          small.onload=()=>res(small);
-          small.src=tmp.toDataURL("image/jpeg",0.9);
-        }else res(img);
-
-      };
+      img.onload=()=>res(img);
       img.src=e.target.result;
     };
     reader.readAsDataURL(file);
   });
 }
 
-// 背景
 function bg(ctx,w,h){
   const g=ctx.createLinearGradient(0,0,w,h);
   g.addColorStop(0,"#0a0a0a");
@@ -93,7 +56,6 @@ function bg(ctx,w,h){
   ctx.fillRect(0,0,w,h);
 }
 
-// ネオン枠
 function neon(ctx,x,y,w,h){
   ctx.strokeStyle="#00ffff";
   ctx.lineWidth=4;
@@ -103,7 +65,6 @@ function neon(ctx,x,y,w,h){
   ctx.shadowBlur=0;
 }
 
-// ★ ローカルQR生成（変更なし）
 function makeQR(text,size){
   if(!text) return null;
 
@@ -112,8 +73,8 @@ function makeQR(text,size){
   qr.make();
 
   const c=document.createElement("canvas");
-  const ctx=c.getContext("2d");
   c.width=size; c.height=size;
+  const ctx=c.getContext("2d");
 
   const count=qr.getModuleCount();
   const tile=size/count;
@@ -134,14 +95,18 @@ function makeQR(text,size){
 
 async function generate(){
 
-  const deckFile=deck.files[0];
-  const iconFile=icon.files[0];
-  const creator=creatorInput.value.trim();
+  const deckFile=document.getElementById("deck").files[0];
+  const iconFile=document.getElementById("icon").files[0];
+  const creator=document.getElementById("creator").value.trim();
 
   if(!deckFile || !iconFile || !creator){
     alert("必須項目不足");
     return;
   }
+
+  const qrUrl=document.getElementById("qrUrl").value.trim();
+  const comment=document.getElementById("comment").value;
+  const twitter=document.getElementById("twitter").value.trim();
 
   const [deckImg,iconImg]=await Promise.all([
     loadImg(deckFile),
@@ -169,7 +134,7 @@ async function generate(){
 
   const y=pad;
 
-  // 👤 アイコン
+  // アイコン
   ctx.save();
   ctx.beginPath();
   ctx.arc(pad+iconSize/2,y+iconSize/2,iconSize/2,0,Math.PI*2);
@@ -178,8 +143,8 @@ async function generate(){
   ctx.restore();
   neon(ctx,pad,y,iconSize,iconSize);
 
-  // 🔳 QR
-  const qrCanvas=makeQR(qrUrl.value.trim(),qrSize);
+  // QR
+  const qrCanvas=makeQR(qrUrl,qrSize);
   const qrX=pad+iconSize+gap;
   const qrY=y+(iconSize-qrSize)/2;
 
@@ -188,30 +153,27 @@ async function generate(){
     neon(ctx,qrX,qrY,qrSize,qrSize);
   }
 
-  // 📝 テキスト
+  // テキスト
   const tx=qrX+qrSize+gap;
 
   ctx.font="bold 52px sans-serif";
   ctx.lineWidth=6;
   ctx.strokeStyle="#000";
-  ctx.strokeText(creatorInput.value,tx,y+70);
-
+  ctx.strokeText(creator,tx,y+70);
   ctx.fillStyle="#00ffff";
-  ctx.fillText(creatorInput.value,tx,y+70);
+  ctx.fillText(creator,tx,y+70);
 
-  // コメント
   ctx.font="bold 28px sans-serif";
-  ctx.strokeText(comment.value,tx,y+120);
-  ctx.fillText(comment.value,tx,y+120);
+  ctx.strokeText(comment,tx,y+120);
+  ctx.fillText(comment,tx,y+120);
 
-  // Twitter
-  if(twitter.value.trim()){
+  if(twitter){
     ctx.font="bold 26px sans-serif";
-    ctx.strokeText("@"+twitter.value.trim(),tx,y+165);
-    ctx.fillText("@"+twitter.value.trim(),tx,y+165);
+    ctx.strokeText("@"+twitter,tx,y+165);
+    ctx.fillText("@"+twitter,tx,y+165);
   }
 
-  // 🃏 デッキ画像
+  // デッキ
   const deckY=topH;
   ctx.drawImage(deckImg,pad,deckY,deckW,deckH);
   neon(ctx,pad,deckY,deckW,deckH);
