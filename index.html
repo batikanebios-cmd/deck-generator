@@ -77,4 +77,169 @@ function drawNeonRect(ctx,x,y,w,h){
   ctx.strokeStyle="#00ffff";
   ctx.lineWidth=4;
   ctx.shadowColor="#00ffff";
-  ctx.
+  ctx.shadowBlur=15;
+  ctx.strokeRect(x,y,w,h);
+  ctx.shadowBlur=0;
+}
+
+function generateQR(text,size){
+  if(!text) return null;
+
+  const qr=qrcode(0,'M');
+  qr.addData(text);
+  qr.make();
+
+  const count=qr.getModuleCount();
+  const tile=size/count;
+
+  const c=document.createElement("canvas");
+  c.width=size;
+  c.height=size;
+  const ctx=c.getContext("2d");
+
+  ctx.fillStyle="#fff";
+  ctx.fillRect(0,0,size,size);
+
+  ctx.fillStyle="#000";
+  for(let r=0;r<count;r++){
+    for(let col=0;col<count;col++){
+      if(qr.isDark(r,col)){
+        ctx.fillRect(col*tile,r*tile,tile,tile);
+      }
+    }
+  }
+  return c;
+}
+
+function drawMultiline(ctx,text,x,y,size,lineH){
+  ctx.font=`bold ${size}px sans-serif`;
+  ctx.lineWidth=3;
+  ctx.strokeStyle="#000";
+  ctx.fillStyle="#00ffff";
+
+  const lines=text.split("\n");
+  let offset=0;
+
+  for(const line of lines){
+    ctx.strokeText(line,x,y+offset);
+    ctx.fillText(line,x,y+offset);
+    offset+=lineH;
+  }
+
+  return offset;
+}
+
+async function generate(){
+  try{
+
+    const deckFile=document.getElementById("deck").files[0];
+    const iconFile=document.getElementById("icon").files[0];
+    const qrUrl=document.getElementById("qrUrl").value.trim();
+    const qrText=document.getElementById("qrText").value;
+    const creator=document.getElementById("creator").value.trim();
+    const twitter=document.getElementById("twitter").value.trim();
+
+    if(!deckFile || !iconFile || !creator){
+      alert("デッキ画像・アイコン・プレイヤー名は必須");
+      return;
+    }
+
+    const [deck,icon]=await Promise.all([
+      loadImg(deckFile),
+      loadImg(iconFile)
+    ]);
+
+    const canvas=document.getElementById("canvas");
+    const ctx=canvas.getContext("2d");
+
+    const padding=24;
+    const iconSize=240;
+    const qrSize=220;
+    const gap=28;
+
+    const deckW=960;
+    const deckH=deck.height*(deckW/deck.width);
+
+    canvas.width=deckW+padding*2;
+    canvas.height=deckH+iconSize+140;
+
+    drawBackground(ctx,canvas.width,canvas.height);
+
+    const topY=padding+40;
+
+    // アイコン（丸）
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(padding+iconSize/2,topY+iconSize/2,iconSize/2,0,Math.PI*2);
+    ctx.clip();
+    ctx.drawImage(icon,padding,topY,iconSize,iconSize);
+    ctx.restore();
+    drawNeonRect(ctx,padding,topY,iconSize,iconSize);
+
+    // QR
+    const qrCanvas=generateQR(qrUrl,qrSize);
+    const qrX=padding+iconSize+gap;
+    const qrY=topY+(iconSize-qrSize)/2;
+
+    if(qrCanvas){
+      ctx.drawImage(qrCanvas,qrX,qrY);
+      drawNeonRect(ctx,qrX,qrY,qrSize,qrSize);
+    }
+
+    const textX=qrX+qrSize+gap;
+
+    // プレイヤー名（主役）
+    ctx.font="bold 50px sans-serif";
+    ctx.lineWidth=6;
+    ctx.strokeStyle="#000";
+    ctx.strokeText(creator,textX,topY+60);
+
+    ctx.fillStyle="#00ffff";
+    ctx.fillText(creator,textX,topY+60);
+
+    // コメント
+    const usedH=drawMultiline(ctx,qrText,textX,topY+120,28,36);
+
+    // Twitter ID（文字のみ）
+    if(twitter){
+      ctx.font="bold 24px sans-serif";
+      ctx.lineWidth=4;
+      ctx.strokeStyle="#000";
+      ctx.strokeText("@"+twitter,textX,topY+120+usedH+10);
+
+      ctx.fillStyle="#00ffff";
+      ctx.fillText("@"+twitter,textX,topY+120+usedH+10);
+    }
+
+    // デッキ画像
+    const deckY=topY+iconSize+40;
+    ctx.drawImage(deck,padding,deckY,deckW,deckH);
+    drawNeonRect(ctx,padding,deckY,deckW,deckH);
+
+    canvas.toBlob(b=>lastBlob=b,"image/jpeg",0.95);
+
+  }catch(e){
+    alert("エラー: "+e.message);
+    console.error(e);
+  }
+}
+
+async function saveToiPhone(){
+  if(!lastBlob){
+    alert("先に生成してください");
+    return;
+  }
+
+  const file=new File([lastBlob],"deck.jpg",{type:"image/jpeg"});
+
+  if(navigator.canShare && navigator.canShare({files:[file]})){
+    await navigator.share({files:[file]});
+  }else{
+    alert("長押し保存してください");
+  }
+}
+
+</script>
+
+</body>
+</html>
