@@ -3,7 +3,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>デッキレシピジェネレーター 完成版＋UI強化</title>
+<title>デッキレシピジェネレーター 安定版</title>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 
@@ -32,152 +32,104 @@ textarea{ height:70px; }
 </head>
 <body>
 
-<h2>デッキレシピジェネレーター（完成版＋UI強化）</h2>
+<h2>デッキレシピジェネレーター（安定版）</h2>
 
-<label>デッキ A: <input type="file" id="deck" accept="image/*"></label>
+<label>デッキ画像: <input type="file" id="deck" accept="image/*"></label>
 
-<label>アイコン B: <input type="file" id="icon" accept="image/*"></label>
+<label>アイコン画像: <input type="file" id="icon" accept="image/*"></label>
 
 <label>QR用URL（任意）: <input type="text" id="qrUrl"></label>
 
-<label>ニューロン文面:
+<label>コメント:
 
-<textarea id="qrText">←ニューロンQRコード
-いいね&フォローよろしく</textarea></label>
+<textarea id="qrText">いいね&フォローよろしく</textarea></label>
 
 <label>プレイヤー名: <input type="text" id="creator"></label>
 
-<label>Twitter ID（@なしでOK）: <input type="text" id="twitter"></label>
+<label>Twitter ID（@なし）: <input type="text" id="twitter"></label>
 
-<button onclick="generate()">生成</button> <button onclick="saveToiPhone()">iPhoneに保存</button>
+<button onclick="generate()">生成</button> <button onclick="saveToiPhone()">保存</button>
 
 <canvas id="canvas"></canvas>
 
 <script>
+
+let lastBlob=null;
+
 async function loadImg(file){
   return new Promise((res,rej)=>{
     const img=new Image();
     img.onload=()=>res(img);
-    img.onerror=()=>rej();
+    img.onerror=()=>rej(new Error("画像読み込み失敗"));
     img.src=URL.createObjectURL(file);
   });
 }
 
-function drawCyberBackground(ctx,w,h){
-  const grad=ctx.createLinearGradient(0,0,w,h);
-  grad.addColorStop(0,"#0d0d0d");
-  grad.addColorStop(1,"#001a33");
-  ctx.fillStyle=grad;
-  ctx.fillRect(0,0,w,h);
-}
-
 function generateQR(text,size){
-  if(!text || typeof qrcode==="undefined") return null;
+  if(!text) return null;
 
-  const qr=qrcode(0,'M');
-  qr.addData(text);
-  qr.make();
+  try{
+    const qr=qrcode(0,'M');
+    qr.addData(text);
+    qr.make();
 
-  const count=qr.getModuleCount();
-  const tile=size/count;
+    const count=qr.getModuleCount();
+    const tile=size/count;
 
-  const c=document.createElement("canvas");
-  c.width=size;
-  c.height=size;
-  const ctx=c.getContext("2d");
+    const c=document.createElement("canvas");
+    c.width=size;
+    c.height=size;
+    const ctx=c.getContext("2d");
 
-  ctx.fillStyle="#fff";
-  ctx.fillRect(0,0,size,size);
+    ctx.fillStyle="#fff";
+    ctx.fillRect(0,0,size,size);
 
-  ctx.fillStyle="#000";
-  for(let r=0;r<count;r++){
-    for(let col=0;col<count;col++){
-      if(qr.isDark(r,col)){
-        ctx.fillRect(col*tile,r*tile,tile,tile);
+    ctx.fillStyle="#000";
+    for(let r=0;r<count;r++){
+      for(let col=0;col<count;col++){
+        if(qr.isDark(r,col)){
+          ctx.fillRect(col*tile,r*tile,tile,tile);
+        }
       }
     }
+    return c;
+  }catch{
+    return null;
   }
-  return c;
 }
 
-function drawNeonRect(ctx,x,y,w,h){
-  ctx.strokeStyle="#00ffff";
+function drawText(ctx,text,x,y,size){
+  ctx.font=`bold ${size}px sans-serif`;
   ctx.lineWidth=4;
-  ctx.shadowColor="#00ffff";
-  ctx.shadowBlur=15;
-  ctx.strokeRect(x,y,w,h);
-  ctx.shadowBlur=0;
-}
-
-function drawMultilineText(ctx,text,x,y,maxWidth,fontSize=28,lineHeight=36){
-  if(!text) return 0;
-
-  ctx.font=`bold ${fontSize}px sans-serif`;
-  ctx.lineWidth=3;
   ctx.strokeStyle="#000";
   ctx.fillStyle="#00ffff";
 
-  const lines=text.split("\n");
-  let offsetY=0;
-
-  for(const line of lines){
-    let current="";
-
-    for(const char of line){
-      const test=current+char;
-      if(ctx.measureText(test).width>maxWidth){
-        ctx.strokeText(current,x,y+offsetY);
-        ctx.fillText(current,x,y+offsetY);
-        current=char;
-        offsetY+=lineHeight;
-      }else current=test;
-    }
-
-    if(current){
-      ctx.strokeText(current,x,y+offsetY);
-      ctx.fillText(current,x,y+offsetY);
-      offsetY+=lineHeight;
-    }
-  }
-  return offsetY;
+  ctx.strokeText(text,x,y);
+  ctx.fillText(text,x,y);
 }
-
-let lastBlob=null;
 
 async function generate(){
 
-  const deckFile=document.getElementById("deck").files[0];
-  const iconFile=document.getElementById("icon").files[0];
-  const qrUrl=document.getElementById("qrUrl").value.trim();
-  const qrText=document.getElementById("qrText").value;
-  const creator=document.getElementById("creator").value.trim();
-  const twitter=document.getElementById("twitter").value.trim();
+  try{
 
-  if(!deckFile || !iconFile || !creator){
-    alert("デッキ・アイコン・プレイヤー名は必須");
-    return;
-  }
+    const deckFile=document.getElementById("deck").files[0];
+    const iconFile=document.getElementById("icon").files[0];
+    const qrUrl=document.getElementById("qrUrl").value.trim();
+    const qrText=document.getElementById("qrText").value;
+    const creator=document.getElementById("creator").value.trim();
+    const twitter=document.getElementById("twitter").value.trim();
 
-  const [deck,icon]=await Promise.all([
-    loadImg(deckFile),
-    loadImg(iconFile)
-  ]);
+    if(!deckFile || !iconFile || !creator){
+      alert("デッキ画像・アイコン・プレイヤー名は必須");
+      return;
+    }
 
-  const canvas=document.getElementById("canvas");
-  const ctx=canvas.getContext("2d");
+    const [deck,icon]=await Promise.all([
+      loadImg(deckFile),
+      loadImg(iconFile)
+    ]);
 
-  const padding=20;
-  const iconSize=260;
-  const qrSize=240;
-  const gap=30;
+    const canvas=document.getElementById("canvas");
+    const ctx=canvas.getContext("2d");
 
-  const deckW=978;
-  const deckRatio=deck.height/deck.width;
-  const deckH=deckW*deckRatio;
-
-  canvas.width=deckW+padding*2;
-  canvas.height=deckH+iconSize+140;
-
-  drawCyberBackground(ctx,canvas.width,canvas.height);
-
-  const topY=
+    const padding=20;
