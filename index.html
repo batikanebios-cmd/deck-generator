@@ -3,7 +3,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>デッキレシピジェネレーター 完全版</title>
+<title>デッキレシピジェネレーター 安定版</title>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 
@@ -32,7 +32,7 @@ textarea{ height:80px; }
 </head>
 <body>
 
-<h2>デッキレシピジェネレーター（完全版）</h2>
+<h2>デッキレシピジェネレーター（安定版）</h2>
 
 <label>デッキ画像: <input type="file" id="deck" accept="image/*"></label>
 
@@ -84,94 +84,12 @@ function drawNeonRect(ctx,x,y,w,h){
 
 function generateQR(text,size){
   if(!text) return null;
-  try{
-    const qr=qrcode(0,'M');
-    qr.addData(text);
-    qr.make();
 
-    const count=qr.getModuleCount();
-    const tile=size/count;
+  const qr=qrcode(0,'M');
+  qr.addData(text);
+  qr.make();
 
-    const c=document.createElement("canvas");
-    c.width=size;
-    c.height=size;
-    const ctx=c.getContext("2d");
+  const count=qr.getModuleCount();
+  const tile=size/count;
 
-    ctx.fillStyle="#fff";
-    ctx.fillRect(0,0,size,size);
-
-    ctx.fillStyle="#000";
-    for(let r=0;r<count;r++){
-      for(let col=0;col<count;col++){
-        if(qr.isDark(r,col)){
-          ctx.fillRect(col*tile,r*tile,tile,tile);
-        }
-      }
-    }
-    return c;
-  }catch{
-    return null;
-  }
-}
-
-function drawMultiline(ctx,text,x,y,maxWidth,size,lineH){
-  ctx.font=`bold ${size}px sans-serif`;
-  ctx.lineWidth=3;
-  ctx.strokeStyle="#000";
-  ctx.fillStyle="#00ffff";
-
-  const words=text.split("");
-  let line="";
-  let offset=0;
-
-  for(const ch of words){
-    const test=line+ch;
-    if(ctx.measureText(test).width>maxWidth){
-      ctx.strokeText(line,x,y+offset);
-      ctx.fillText(line,x,y+offset);
-      line=ch;
-      offset+=lineH;
-    }else line=test;
-  }
-
-  if(line){
-    ctx.strokeText(line,x,y+offset);
-    ctx.fillText(line,x,y+offset);
-    offset+=lineH;
-  }
-
-  return offset;
-}
-
-async function generate(){
-  try{
-
-    const deckFile=document.getElementById("deck").files[0];
-    const iconFile=document.getElementById("icon").files[0];
-    const qrUrl=document.getElementById("qrUrl").value.trim();
-    const qrText=document.getElementById("qrText").value;
-    const creator=document.getElementById("creator").value.trim();
-    const twitter=document.getElementById("twitter").value.trim();
-
-    if(!deckFile || !iconFile || !creator){
-      alert("デッキ画像・アイコン・プレイヤー名は必須");
-      return;
-    }
-
-    const [deck,icon]=await Promise.all([
-      loadImg(deckFile),
-      loadImg(iconFile)
-    ]);
-
-    const canvas=document.getElementById("canvas");
-    const ctx=canvas.getContext("2d");
-
-    const padding=24;
-    const iconSize=240;
-    const qrSize=220;
-    const gap=28;
-
-    const deckW=960;
-    const deckH=deck.height*(deckW/deck.width);
-
-    canvas.width=deckW+pa
+  const c=document.createElement("can
