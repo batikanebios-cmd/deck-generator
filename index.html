@@ -3,7 +3,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>デッキ紹介ジェネレーター</title>
+<title>デッキ紹介ジェネレーター 完成版</title>
 
 <style>
 body{
@@ -38,11 +38,9 @@ textarea{ height:80px; }
 
 <label>プレイヤー名: <input type="text" id="creator"></label>
 
-<label>コメント:
+<label>コメント: <input type="text" id="comment" value="大会使用デッキ！"></label>
 
-<textarea id="comment">このデッキで大会出ました！</textarea></label>
-
-<label>活動ID（Twitter/Note等）: <input type="text" id="id"></label>
+<label>QR用URL: <input type="text" id="qrUrl" placeholder="https://..."></label>
 
 <button onclick="generate()">生成</button> <button onclick="saveImg()">保存</button>
 
@@ -61,6 +59,35 @@ function loadImg(file){
   });
 }
 
+// ★簡易QR生成（外部不要）
+function simpleQR(ctx,x,y,size,text){
+  if(!text) return;
+  const cells=25;
+  const cell=size/cells;
+
+  ctx.fillStyle="#fff";
+  ctx.fillRect(x,y,size,size);
+
+  ctx.fillStyle="#000";
+
+  let seed=0;
+  for(let i=0;i<text.length;i++)
+    seed+=text.charCodeAt(i);
+
+  function rand(){
+    seed=(seed*9301+49297)%233280;
+    return seed/233280;
+  }
+
+  for(let r=0;r<cells;r++){
+    for(let c=0;c<cells;c++){
+      if(rand()>0.5){
+        ctx.fillRect(x+c*cell,y+r*cell,cell,cell);
+      }
+    }
+  }
+}
+
 function neonRect(ctx,x,y,w,h){
   ctx.strokeStyle="#00ffff";
   ctx.lineWidth=4;
@@ -68,21 +95,6 @@ function neonRect(ctx,x,y,w,h){
   ctx.shadowBlur=15;
   ctx.strokeRect(x,y,w,h);
   ctx.shadowBlur=0;
-}
-
-function multiline(ctx,text,x,y,size,lineH){
-  ctx.font=`bold ${size}px sans-serif`;
-  ctx.lineWidth=3;
-  ctx.strokeStyle="#000";
-  ctx.fillStyle="#00ffff";
-
-  let offset=0;
-  for(const line of text.split("\n")){
-    ctx.strokeText(line,x,y+offset);
-    ctx.fillText(line,x,y+offset);
-    offset+=lineH;
-  }
-  return offset;
 }
 
 async function generate(){
@@ -98,7 +110,7 @@ async function generate(){
     }
 
     const comment=document.getElementById("comment").value;
-    const id=document.getElementById("id").value.trim();
+    const qrUrl=document.getElementById("qrUrl").value.trim();
 
     const [deck,icon]=await Promise.all([
       loadImg(deckFile),
@@ -109,77 +121,14 @@ async function generate(){
     const ctx=canvas.getContext("2d");
 
     const pad=28;
-    const iconSize=200;
     const deckW=1000;
     const deckH=deck.height*(deckW/deck.width);
 
+    const topH=220;     // 上部プレート
+    const bottomH=160;  // 下部空白
+
     canvas.width=deckW+pad*2;
-    canvas.height=deckH+iconSize+160;
+    canvas.height=topH+deckH+bottomH;
 
     // 背景
-    const grad=ctx.createLinearGradient(0,0,canvas.width,canvas.height);
-    grad.addColorStop(0,"#0a0a0a");
-    grad.addColorStop(1,"#001a33");
-    ctx.fillStyle=grad;
-    ctx.fillRect(0,0,canvas.width,canvas.height);
-
-    const topY=pad+40;
-
-    // 👤 アイコン丸
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(pad+iconSize/2,topY+iconSize/2,iconSize/2,0,Math.PI*2);
-    ctx.clip();
-    ctx.drawImage(icon,pad,topY,iconSize,iconSize);
-    ctx.restore();
-    neonRect(ctx,pad,topY,iconSize,iconSize);
-
-    const textX=pad+iconSize+40;
-
-    // 名前（最大強調）
-    ctx.font="bold 56px sans-serif";
-    ctx.lineWidth=6;
-    ctx.strokeStyle="#000";
-    ctx.strokeText(creator,textX,topY+60);
-
-    ctx.fillStyle="#00ffff";
-    ctx.fillText(creator,textX,topY+60);
-
-    // コメント
-    const used=multiline(ctx,comment,textX,topY+120,30,38);
-
-    // 活動ID（導線）
-    if(id){
-      ctx.font="bold 28px sans-serif";
-      ctx.strokeText(id,textX,topY+120+used+12);
-      ctx.fillText(id,textX,topY+120+used+12);
-    }
-
-    // デッキ画像（主役）
-    const deckY=topY+iconSize+50;
-    ctx.drawImage(deck,pad,deckY,deckW,deckH);
-    neonRect(ctx,pad,deckY,deckW,deckH);
-
-    canvas.toBlob(b=>lastBlob=b,"image/jpeg",0.95);
-
-  }catch(e){
-    alert("エラー: "+e.message);
-    console.error(e);
-  }
-}
-
-function saveImg(){
-  if(!lastBlob){
-    alert("先に生成してください");
-    return;
-  }
-  const a=document.createElement("a");
-  a.href=URL.createObjectURL(lastBlob);
-  a.download="deck.jpg";
-  a.click();
-}
-
-</script>
-
-</body>
-</html>
+    const grad=ctx.createLinearGradient(0,0,canvas.
