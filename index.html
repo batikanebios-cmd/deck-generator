@@ -150,4 +150,35 @@ async function generate(){
     // Twitter
     if(twitter){
       ctx.font="bold 24px sans-serif";
-      ctx.strokeText("@"+twitter,textX,topY+120+use
+      ctx.strokeText("@"+twitter,textX,topY+120+used+10);
+      ctx.fillText("@"+twitter,textX,topY+120+used+10);
+    }
+
+    // デッキ画像
+    const deckY=topY+iconSize+40;
+    ctx.drawImage(deck,pad,deckY,deckW,deckH);
+    neonRect(ctx,pad,deckY,deckW,deckH);
+
+    canvas.toBlob(b=>lastBlob=b,"image/jpeg",0.95);
+
+  }catch(e){
+    alert("エラー: "+e.message);
+    console.error(e);
+  }
+}
+
+function saveImg(){
+  if(!lastBlob){
+    alert("先に生成してください");
+    return;
+  }
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(lastBlob);
+  a.download="deck.jpg";
+  a.click();
+}
+
+</script>
+
+</body>
+</html>
