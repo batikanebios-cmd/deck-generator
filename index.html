@@ -3,12 +3,18 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>デッキ紹介ジェネレーター 安定版</title>
+<title>デッキ紹介ジェネレーター</title>
+
+<!-- ★本物QRライブラリ -->
+
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
+
 <style>
 body{font-family:sans-serif;background:#111;color:#fff;padding:20px}
 canvas{border:1px solid #444;display:block;margin-top:20px;max-width:100%}
 input,button{display:block;margin:8px 0;width:100%;max-width:420px}
 </style>
+
 </head>
 <body>
 
@@ -19,7 +25,7 @@ input,button{display:block;margin:8px 0;width:100%;max-width:420px}
 <input type="text" id="creator" placeholder="プレイヤー名">
 <input type="text" id="comment" placeholder="コメント">
 <input type="text" id="twitter" placeholder="TwitterID">
-<input type="text" id="qrUrl" placeholder="QR用URL">
+<input type="text" id="qrUrl" placeholder="QRにするURL">
 
 <button id="genBtn">生成</button> <button id="saveBtn">保存</button>
 
@@ -31,7 +37,7 @@ const canvas=document.getElementById("canvas");
 const ctx=canvas.getContext("2d");
 let lastBlob=null;
 
-// 🔥 安全な画像読み込み＋自動縮小
+// 安全読み込み＋縮小
 function loadImage(file){
   return new Promise((resolve,reject)=>{
     const reader=new FileReader();
@@ -39,61 +45,40 @@ function loadImage(file){
       const img=new Image();
       img.onload=()=>{
 
-        const MAX=2000; // ← 超重要
+        const MAX=2000;
+        let w=img.width, h=img.height;
 
-        let w=img.width;
-        let h=img.height;
-
-        if(w>MAX || h>MAX){
-          const ratio=Math.min(MAX/w,MAX/h);
-          w*=ratio;
-          h*=ratio;
+        if(w>MAX||h>MAX){
+          const r=Math.min(MAX/w,MAX/h);
+          w*=r; h*=r;
 
           const tmp=document.createElement("canvas");
-          tmp.width=w;
-          tmp.height=h;
+          tmp.width=w; tmp.height=h;
           tmp.getContext("2d").drawImage(img,0,0,w,h);
 
           const small=new Image();
           small.onload=()=>resolve(small);
           small.src=tmp.toDataURL("image/jpeg",0.9);
-        }else{
-          resolve(img);
-        }
+        }else resolve(img);
+
       };
-      img.onerror=()=>reject("画像読み込み失敗");
       img.src=e.target.result;
     };
     reader.readAsDataURL(file);
   });
 }
 
-// QR風
-function drawQR(x,y,size,text){
-  if(!text) return;
-  const c=25;
-  const s=size/c;
-
-  ctx.fillStyle="#fff";
-  ctx.fillRect(x,y,size,size);
-
-  ctx.fillStyle="#000";
-  let seed=text.length;
-
-  function r(){
-    seed=(seed*9301+49297)%233280;
-    return seed/233280;
-  }
-
-  for(let i=0;i<c;i++)
-    for(let j=0;j<c;j++)
-      if(r()>0.5) ctx.fillRect(x+i*s,y+j*s,s,s);
-}
-
 function neon(x,y,w,h){
   ctx.strokeStyle="#00ffff";
   ctx.lineWidth=4;
   ctx.strokeRect(x,y,w,h);
+}
+
+// ★本物QR生成
+async function createQR(text,size){
+  const tmp=document.createElement("canvas");
+  await QRCode.toCanvas(tmp,text,{width:size,margin:1});
+  return tmp;
 }
 
 document.getElementById("genBtn").onclick=async()=>{
@@ -104,7 +89,7 @@ document.getElementById("genBtn").onclick=async()=>{
     const iconFile=document.getElementById("icon").files[0];
     const creator=document.getElementById("creator").value.trim();
 
-    if(!deckFile || !iconFile || !creator){
+    if(!deckFile||!iconFile||!creator){
       alert("必須項目不足");
       return;
     }
@@ -117,6 +102,8 @@ document.getElementById("genBtn").onclick=async()=>{
       loadImage(deckFile),
       loadImage(iconFile)
     ]);
+
+    const qr = qrUrl ? await createQR(qrUrl,160) : null;
 
     const pad=28;
     const deckW=1000;
@@ -135,13 +122,11 @@ document.getElementById("genBtn").onclick=async()=>{
     ctx.fillStyle=g;
     ctx.fillRect(0,0,canvas.width,canvas.height);
 
-    // 上部枠
     ctx.strokeStyle="#00ffff";
     ctx.lineWidth=2;
     ctx.strokeRect(10,10,canvas.width-20,topH-20);
 
     const iconSize=160;
-    const qrSize=160;
     const y=topH/2-iconSize/2;
 
     // アイコン
@@ -172,32 +157,11 @@ document.getElementById("genBtn").onclick=async()=>{
       ctx.fillText("@"+twitter,tx,y+135);
     }
 
-    const qrX=canvas.width-pad-qrSize;
-    drawQR(qrX,y,qrSize,qrUrl);
-    neon(qrX,y,qrSize,qrSize);
+    if(qr){
+      const qrX=canvas.width-pad-160;
+      ctx.drawImage(qr,qrX,y);
+      neon(qrX,y,160,160);
+    }
 
     const deckY=topH;
-    ctx.drawImage(deck,pad,deckY,deckW,deckH);
-    neon(pad,deckY,deckW,deckH);
-
-    canvas.toBlob(b=>lastBlob=b,"image/jpeg",0.95);
-
-  }catch(e){
-    alert("生成失敗: "+e);
-    console.error(e);
-  }
-
-};
-
-document.getElementById("saveBtn").onclick=()=>{
-  if(!lastBlob){alert("先に生成してください");return;}
-  const a=document.createElement("a");
-  a.href=URL.createObjectURL(lastBlob);
-  a.download="deck.jpg";
-  a.click();
-};
-
-</script>
-
-</body>
-</html>
+    ctx.drawImage(deck,pad,d
