@@ -3,9 +3,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>デッキレシピジェネレーター 安定版</title>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<title>デッキジェネレーター GitHub安定版</title>
 
 <style>
 body{
@@ -32,13 +30,11 @@ textarea{ height:70px; }
 </head>
 <body>
 
-<h2>デッキレシピジェネレーター（安定版）</h2>
+<h2>デッキジェネレーター（GitHub安定版）</h2>
 
 <label>デッキ画像: <input type="file" id="deck" accept="image/*"></label>
 
 <label>アイコン画像: <input type="file" id="icon" accept="image/*"></label>
-
-<label>QR用URL（任意）: <input type="text" id="qrUrl"></label>
 
 <label>コメント:
 
@@ -65,56 +61,20 @@ async function loadImg(file){
   });
 }
 
-function generateQR(text,size){
-  if(!text) return null;
-
-  try{
-    const qr=qrcode(0,'M');
-    qr.addData(text);
-    qr.make();
-
-    const count=qr.getModuleCount();
-    const tile=size/count;
-
-    const c=document.createElement("canvas");
-    c.width=size;
-    c.height=size;
-    const ctx=c.getContext("2d");
-
-    ctx.fillStyle="#fff";
-    ctx.fillRect(0,0,size,size);
-
-    ctx.fillStyle="#000";
-    for(let r=0;r<count;r++){
-      for(let col=0;col<count;col++){
-        if(qr.isDark(r,col)){
-          ctx.fillRect(col*tile,r*tile,tile,tile);
-        }
-      }
-    }
-    return c;
-  }catch{
-    return null;
-  }
-}
-
 function drawText(ctx,text,x,y,size){
   ctx.font=`bold ${size}px sans-serif`;
   ctx.lineWidth=4;
   ctx.strokeStyle="#000";
   ctx.fillStyle="#00ffff";
-
   ctx.strokeText(text,x,y);
   ctx.fillText(text,x,y);
 }
 
 async function generate(){
-
   try{
 
     const deckFile=document.getElementById("deck").files[0];
     const iconFile=document.getElementById("icon").files[0];
-    const qrUrl=document.getElementById("qrUrl").value.trim();
     const qrText=document.getElementById("qrText").value;
     const creator=document.getElementById("creator").value.trim();
     const twitter=document.getElementById("twitter").value.trim();
@@ -133,3 +93,65 @@ async function generate(){
     const ctx=canvas.getContext("2d");
 
     const padding=20;
+    const iconSize=220;
+    const gap=25;
+
+    const deckW=900;
+    const deckH=deck.height*(deckW/deck.width);
+
+    canvas.width=deckW+padding*2;
+    canvas.height=deckH+iconSize+120;
+
+    // 背景
+    ctx.fillStyle="#0b1622";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+
+    const topY=padding+30;
+
+    // アイコン
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(padding+iconSize/2,topY+iconSize/2,iconSize/2,0,Math.PI*2);
+    ctx.clip();
+    ctx.drawImage(icon,padding,topY,iconSize,iconSize);
+    ctx.restore();
+
+    const textX=padding+iconSize+gap;
+
+    drawText(ctx,creator,textX,topY+50,44);
+    drawText(ctx,qrText,textX,topY+110,24);
+
+    if(twitter){
+      drawText(ctx,"@"+twitter,textX,topY+160,22);
+    }
+
+    const deckY=topY+iconSize+30;
+    ctx.drawImage(deck,padding,deckY,deckW,deckH);
+
+    canvas.toBlob(b=>lastBlob=b,"image/jpeg",0.95);
+
+  }catch(e){
+    alert("エラー: "+e.message);
+    console.error(e);
+  }
+}
+
+async function saveToiPhone(){
+  if(!lastBlob){
+    alert("先に生成してください");
+    return;
+  }
+
+  const file=new File([lastBlob],"deck.jpg",{type:"image/jpeg"});
+
+  if(navigator.canShare && navigator.canShare({files:[file]})){
+    await navigator.share({files:[file]});
+  }else{
+    alert("長押し保存してください");
+  }
+}
+
+</script>
+
+</body>
+</html>
