@@ -5,13 +5,30 @@
 <meta charset="UTF-8">
 <title>デッキレシピジェネレーター 安定完成版</title>
 
+<!-- ローカルQR（同じフォルダに置く） -->
+
 <script src="qrcode.min.js"></script>
 
 <style>
-body{font-family:sans-serif;background:#111;color:#fff;padding:20px;}
-canvas{border:1px solid #444;display:block;margin-top:20px;max-width:100%;}
-input,textarea,button{display:block;margin:8px 0;width:100%;max-width:420px;}
-textarea{height:80px;}
+body{
+  font-family:sans-serif;
+  background:#111;
+  color:#fff;
+  padding:20px;
+}
+canvas{
+  border:1px solid #444;
+  display:block;
+  margin-top:20px;
+  max-width:100%;
+}
+input,textarea,button{
+  display:block;
+  margin:8px 0;
+  width:100%;
+  max-width:420px;
+}
+textarea{ height:80px; }
 </style>
 
 </head>
@@ -19,14 +36,11 @@ textarea{height:80px;}
 
 <h2>デッキレシピジェネレーター</h2>
 
-<input type="file" id="deck" accept="image/*">
-<input type="file" id="icon" accept="image/*">
+<label>デッキ画像<input type="file" id="deck" accept="image/*"></label> <label>アイコン<input type="file" id="icon" accept="image/*"></label>
 
-<input type="text" id="qrUrl" placeholder="QR用URL">
-<textarea id="comment">いいね＆フォローよろしく！</textarea>
+<label>QR用URL<input type="text" id="qrUrl"></label> <label>コメント<textarea id="comment">いいね＆フォローよろしく！</textarea></label>
 
-<input type="text" id="creator" placeholder="プレイヤー名">
-<input type="text" id="twitter" placeholder="Twitter ID（@なし）">
+<label>プレイヤー名<input type="text" id="creator"></label> <label>Twitter ID<input type="text" id="twitter"></label>
 
 <button onclick="generate()">生成</button> <button onclick="save()">保存</button>
 
@@ -38,13 +52,10 @@ let lastBlob=null;
 
 function loadImg(file){
   return new Promise((res,rej)=>{
-    const reader=new FileReader();
-    reader.onload=e=>{
-      const img=new Image();
-      img.onload=()=>res(img);
-      img.src=e.target.result;
-    };
-    reader.readAsDataURL(file);
+    const img=new Image();
+    img.onload=()=>res(img);
+    img.onerror=()=>rej();
+    img.src=URL.createObjectURL(file);
   });
 }
 
@@ -73,7 +84,8 @@ function makeQR(text,size){
   qr.make();
 
   const c=document.createElement("canvas");
-  c.width=size; c.height=size;
+  c.width=size;
+  c.height=size;
   const ctx=c.getContext("2d");
 
   const count=qr.getModuleCount();
@@ -110,86 +122,4 @@ async function generate(){
 
   const [deckImg,iconImg]=await Promise.all([
     loadImg(deckFile),
-    loadImg(iconFile)
-  ]);
-
-  const canvas=document.getElementById("canvas");
-  const ctx=canvas.getContext("2d");
-
-  const pad=32;
-  const iconSize=220;
-  const qrSize=200;
-  const gap=28;
-
-  const deckW=960;
-  const deckH=deckImg.height*(deckW/deckImg.width);
-
-  const topH=iconSize+pad*2;
-  const bottomSpace=180;
-
-  canvas.width=deckW+pad*2;
-  canvas.height=topH+deckH+bottomSpace;
-
-  bg(ctx,canvas.width,canvas.height);
-
-  const y=pad;
-
-  // アイコン
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(pad+iconSize/2,y+iconSize/2,iconSize/2,0,Math.PI*2);
-  ctx.clip();
-  ctx.drawImage(iconImg,pad,y,iconSize,iconSize);
-  ctx.restore();
-  neon(ctx,pad,y,iconSize,iconSize);
-
-  // QR
-  const qrCanvas=makeQR(qrUrl,qrSize);
-  const qrX=pad+iconSize+gap;
-  const qrY=y+(iconSize-qrSize)/2;
-
-  if(qrCanvas){
-    ctx.drawImage(qrCanvas,qrX,qrY);
-    neon(ctx,qrX,qrY,qrSize,qrSize);
-  }
-
-  // テキスト
-  const tx=qrX+qrSize+gap;
-
-  ctx.font="bold 52px sans-serif";
-  ctx.lineWidth=6;
-  ctx.strokeStyle="#000";
-  ctx.strokeText(creator,tx,y+70);
-  ctx.fillStyle="#00ffff";
-  ctx.fillText(creator,tx,y+70);
-
-  ctx.font="bold 28px sans-serif";
-  ctx.strokeText(comment,tx,y+120);
-  ctx.fillText(comment,tx,y+120);
-
-  if(twitter){
-    ctx.font="bold 26px sans-serif";
-    ctx.strokeText("@"+twitter,tx,y+165);
-    ctx.fillText("@"+twitter,tx,y+165);
-  }
-
-  // デッキ
-  const deckY=topH;
-  ctx.drawImage(deckImg,pad,deckY,deckW,deckH);
-  neon(ctx,pad,deckY,deckW,deckH);
-
-  canvas.toBlob(b=>lastBlob=b,"image/jpeg",0.95);
-}
-
-function save(){
-  if(!lastBlob){alert("先に生成");return;}
-  const a=document.createElement("a");
-  a.href=URL.createObjectURL(lastBlob);
-  a.download="deck.jpg";
-  a.click();
-}
-
-</script>
-
-</body>
-</html>
+    loadImg(icon
