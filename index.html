@@ -3,7 +3,9 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>デッキジェネレーター 完全安定版</title>
+<title>デッキレシピジェネレーター 安定版</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 
 <style>
 body{
@@ -30,21 +32,23 @@ textarea{ height:80px; }
 </head>
 <body>
 
-<h2>デッキジェネレーター（完全安定版）</h2>
+<h2>デッキレシピジェネレーター（安定版）</h2>
 
 <label>デッキ画像: <input type="file" id="deck" accept="image/*"></label>
 
 <label>アイコン画像: <input type="file" id="icon" accept="image/*"></label>
 
+<label>QR用URL（任意）: <input type="text" id="qrUrl"></label>
+
 <label>コメント:
 
-<textarea id="comment">いいね＆フォローよろしく！</textarea></label>
+<textarea id="qrText">いいね&フォローよろしく</textarea></label>
 
 <label>プレイヤー名: <input type="text" id="creator"></label>
 
 <label>Twitter ID（@なし）: <input type="text" id="twitter"></label>
 
-<button onclick="generate()">生成</button> <button onclick="saveImg()">保存</button>
+<button onclick="generate()">生成</button> <button onclick="saveToiPhone()">保存</button>
 
 <canvas id="canvas"></canvas>
 
@@ -52,7 +56,7 @@ textarea{ height:80px; }
 
 let lastBlob=null;
 
-function loadImg(file){
+async function loadImg(file){
   return new Promise((res,rej)=>{
     const img=new Image();
     img.onload=()=>res(img);
@@ -61,7 +65,15 @@ function loadImg(file){
   });
 }
 
-function neonRect(ctx,x,y,w,h){
+function drawBackground(ctx,w,h){
+  const grad=ctx.createLinearGradient(0,0,w,h);
+  grad.addColorStop(0,"#0a0a0a");
+  grad.addColorStop(1,"#001a33");
+  ctx.fillStyle=grad;
+  ctx.fillRect(0,0,w,h);
+}
+
+function drawNeonRect(ctx,x,y,w,h){
   ctx.strokeStyle="#00ffff";
   ctx.lineWidth=4;
   ctx.shadowColor="#00ffff";
@@ -70,18 +82,50 @@ function neonRect(ctx,x,y,w,h){
   ctx.shadowBlur=0;
 }
 
-function multiline(ctx,text,x,y,size,lineH){
+function generateQR(text,size){
+  if(!text) return null;
+
+  const qr=qrcode(0,'M');
+  qr.addData(text);
+  qr.make();
+
+  const count=qr.getModuleCount();
+  const tile=size/count;
+
+  const c=document.createElement("canvas");
+  c.width=size;
+  c.height=size;
+  const ctx=c.getContext("2d");
+
+  ctx.fillStyle="#fff";
+  ctx.fillRect(0,0,size,size);
+
+  ctx.fillStyle="#000";
+  for(let r=0;r<count;r++){
+    for(let col=0;col<count;col++){
+      if(qr.isDark(r,col)){
+        ctx.fillRect(col*tile,r*tile,tile,tile);
+      }
+    }
+  }
+  return c;
+}
+
+function drawMultiline(ctx,text,x,y,size,lineH){
   ctx.font=`bold ${size}px sans-serif`;
   ctx.lineWidth=3;
   ctx.strokeStyle="#000";
   ctx.fillStyle="#00ffff";
 
+  const lines=text.split("\n");
   let offset=0;
-  for(const line of text.split("\n")){
+
+  for(const line of lines){
     ctx.strokeText(line,x,y+offset);
     ctx.fillText(line,x,y+offset);
     offset+=lineH;
   }
+
   return offset;
 }
 
@@ -90,15 +134,15 @@ async function generate(){
 
     const deckFile=document.getElementById("deck").files[0];
     const iconFile=document.getElementById("icon").files[0];
+    const qrUrl=document.getElementById("qrUrl").value.trim();
+    const qrText=document.getElementById("qrText").value;
     const creator=document.getElementById("creator").value.trim();
+    const twitter=document.getElementById("twitter").value.trim();
 
     if(!deckFile || !iconFile || !creator){
       alert("デッキ画像・アイコン・プレイヤー名は必須");
       return;
     }
-
-    const comment=document.getElementById("comment").value;
-    const twitter=document.getElementById("twitter").value.trim();
 
     const [deck,icon]=await Promise.all([
       loadImg(deckFile),
@@ -108,56 +152,69 @@ async function generate(){
     const canvas=document.getElementById("canvas");
     const ctx=canvas.getContext("2d");
 
-    const pad=24;
+    const padding=24;
     const iconSize=240;
+    const qrSize=220;
+    const gap=28;
+
     const deckW=960;
     const deckH=deck.height*(deckW/deck.width);
 
-    canvas.width=deckW+pad*2;
+    canvas.width=deckW+padding*2;
     canvas.height=deckH+iconSize+140;
 
-    // 背景
-    const grad=ctx.createLinearGradient(0,0,canvas.width,canvas.height);
-    grad.addColorStop(0,"#0a0a0a");
-    grad.addColorStop(1,"#001a33");
-    ctx.fillStyle=grad;
-    ctx.fillRect(0,0,canvas.width,canvas.height);
+    drawBackground(ctx,canvas.width,canvas.height);
 
-    const topY=pad+40;
+    const topY=padding+40;
 
-    // アイコン丸表示
+    // アイコン（丸）
     ctx.save();
     ctx.beginPath();
-    ctx.arc(pad+iconSize/2,topY+iconSize/2,iconSize/2,0,Math.PI*2);
+    ctx.arc(padding+iconSize/2,topY+iconSize/2,iconSize/2,0,Math.PI*2);
     ctx.clip();
-    ctx.drawImage(icon,pad,topY,iconSize,iconSize);
+    ctx.drawImage(icon,padding,topY,iconSize,iconSize);
     ctx.restore();
-    neonRect(ctx,pad,topY,iconSize,iconSize);
+    drawNeonRect(ctx,padding,topY,iconSize,iconSize);
 
-    const textX=pad+iconSize+40;
+    // QR
+    const qrCanvas=generateQR(qrUrl,qrSize);
+    const qrX=padding+iconSize+gap;
+    const qrY=topY+(iconSize-qrSize)/2;
 
-    // 名前
-    ctx.font="bold 52px sans-serif";
+    if(qrCanvas){
+      ctx.drawImage(qrCanvas,qrX,qrY);
+      drawNeonRect(ctx,qrX,qrY,qrSize,qrSize);
+    }
+
+    const textX=qrX+qrSize+gap;
+
+    // プレイヤー名（主役）
+    ctx.font="bold 50px sans-serif";
     ctx.lineWidth=6;
     ctx.strokeStyle="#000";
     ctx.strokeText(creator,textX,topY+60);
+
     ctx.fillStyle="#00ffff";
     ctx.fillText(creator,textX,topY+60);
 
     // コメント
-    const used=multiline(ctx,comment,textX,topY+120,28,36);
+    const usedH=drawMultiline(ctx,qrText,textX,topY+120,28,36);
 
-    // Twitter
+    // Twitter ID（文字のみ）
     if(twitter){
       ctx.font="bold 24px sans-serif";
-      ctx.strokeText("@"+twitter,textX,topY+120+used+10);
-      ctx.fillText("@"+twitter,textX,topY+120+used+10);
+      ctx.lineWidth=4;
+      ctx.strokeStyle="#000";
+      ctx.strokeText("@"+twitter,textX,topY+120+usedH+10);
+
+      ctx.fillStyle="#00ffff";
+      ctx.fillText("@"+twitter,textX,topY+120+usedH+10);
     }
 
     // デッキ画像
     const deckY=topY+iconSize+40;
-    ctx.drawImage(deck,pad,deckY,deckW,deckH);
-    neonRect(ctx,pad,deckY,deckW,deckH);
+    ctx.drawImage(deck,padding,deckY,deckW,deckH);
+    drawNeonRect(ctx,padding,deckY,deckW,deckH);
 
     canvas.toBlob(b=>lastBlob=b,"image/jpeg",0.95);
 
@@ -167,15 +224,19 @@ async function generate(){
   }
 }
 
-function saveImg(){
+async function saveToiPhone(){
   if(!lastBlob){
     alert("先に生成してください");
     return;
   }
-  const a=document.createElement("a");
-  a.href=URL.createObjectURL(lastBlob);
-  a.download="deck.jpg";
-  a.click();
+
+  const file=new File([lastBlob],"deck.jpg",{type:"image/jpeg"});
+
+  if(navigator.canShare && navigator.canShare({files:[file]})){
+    await navigator.share({files:[file]});
+  }else{
+    alert("長押し保存してください");
+  }
 }
 
 </script>
